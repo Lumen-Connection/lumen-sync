@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -8,6 +9,19 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+val appVersionProperties = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+
+val appVersionName = appVersionProperties.getProperty("versionName")
+    ?: error("versionName is missing from version.properties")
+
+val appVersionCode = appVersionProperties.getProperty("versionCode")
+    ?.toIntOrNull()
+    ?: error("versionCode must be an integer")
+
+version = appVersionName
 
 kotlin {
     androidTarget {
@@ -70,8 +84,8 @@ android {
         applicationId = "dev.lumensync.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     packaging {
@@ -112,7 +126,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Lumen Sync"
-            packageVersion = "0.1.0"
+            packageVersion = appVersionName
             description = "Simple peer-to-peer folder synchronization"
             vendor = "Lumen Sync contributors"
             windows {
