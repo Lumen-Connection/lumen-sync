@@ -14,7 +14,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-version:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate application version
+        shell: bash
+        run: |
+          version_name="$(
+            sed -n 's/^versionName=//p' version.properties |
+            tr -d '\r'
+          )"
+
+          version_code="$(
+            sed -n 's/^versionCode=//p' version.properties |
+            tr -d '\r'
+          )"
+
+          if [[ ! "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid versionName: $version_name"
+            exit 1
+          fi
+
+          if [[ ! "$version_code" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::versionCode must be a positive integer"
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]] &&
+             [[ "$GITHUB_REF_NAME" != "v$version_name" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version v$version_name"
+            exit 1
+          fi
+
+          echo "Validated application version $version_name ($version_code)"
   desktop:
+    needs: validate-version
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +92,7 @@ jobs:
           retention-days: 7
 
   android:
+    needs: validate-version
     runs-on: ubuntu-24.04
 
     steps:
@@ -155,3 +193,4 @@ jobs:
             --title "Lumen Sync ${{ github.ref_name }}" \
             --generate-notes \
             --verify-tag
+
