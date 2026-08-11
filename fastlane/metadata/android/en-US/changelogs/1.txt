@@ -1,0 +1,1 @@
+Initial release: one-folder peer-to-peer sync, QR pairing, explicit device approval, desktop tray mode, and manual Android foreground sessions.

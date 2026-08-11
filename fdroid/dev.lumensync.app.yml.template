@@ -1,0 +1,29 @@
+# Replace the repository placeholders and copy this file to your F-Droid metadata
+# repository as metadata/dev.lumensync.app.yml.
+Categories:
+  - Connectivity
+License: Apache-2.0
+AuthorName: Lumen Sync contributors
+WebSite: https://REPOSITORY_HOST/OWNER/lumen-sync
+SourceCode: https://REPOSITORY_HOST/OWNER/lumen-sync
+IssueTracker: https://REPOSITORY_HOST/OWNER/lumen-sync/issues
+
+AutoName: Lumen Sync
+RepoType: git
+Repo: https://REPOSITORY_HOST/OWNER/lumen-sync.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    subdir: composeApp
+    sudo:
+      - apt-get update
+      - apt-get install -y golang-go
+    gradle:
+      - release
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1

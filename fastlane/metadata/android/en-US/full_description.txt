@@ -1,0 +1,7 @@
+Lumen Sync synchronizes one folder between your Windows, Linux, and Android devices using a bundled Syncthing core.
+
+There is no Lumen account or central file server. Pair devices with a QR invite, approve each new device, and press Sync now on Android. The desktop app can remain in the tray and sync continuously.
+
+The selected folder is a two-way mirror: edits and deletions propagate to every paired device. This first release does not provide backups or file versioning.
+
+Lumen Sync contains no advertisements, analytics, or telemetry. It requests broad file access because Android otherwise prevents a native synchronization engine from monitoring an arbitrary user-selected folder.

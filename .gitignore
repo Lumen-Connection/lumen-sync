@@ -1,0 +1,15 @@
+.gradle/
+.idea/
+.kotlin/
+.tools/
+.cache/
+build/
+**/build/
+local.properties
+*.iml
+*.log
+*.jks
+*.keystore
+composeApp/src/androidMain/jniLibs/
+composeApp/src/desktopMain/appResources/**/syncthing
+composeApp/src/desktopMain/appResources/**/syncthing.exe
