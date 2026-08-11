@@ -178,7 +178,7 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-            - name: Collect and checksum release assets
+      - name: Collect and checksum release assets
         shell: bash
         run: |
           mkdir release-assets
