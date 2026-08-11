@@ -171,7 +171,7 @@ jobs:
     permissions:
       contents: write
 
-   steps:
+    steps:
       - name: Check out tagged source
         uses: actions/checkout@v6
         with:
