@@ -178,19 +178,44 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate checksums
+            - name: Collect and checksum release assets
         shell: bash
         run: |
-          cd artifacts
-          sha256sum *.msi *.deb *.apk > SHA256SUMS.txt
+          mkdir release-assets
+
+          mapfile -d '' asset_files < <(
+            find artifacts -type f \
+              \( -name '*.msi' -o -name '*.deb' -o -name '*.apk' \) \
+              -print0
+          )
+
+          if [[ "${#asset_files[@]}" -ne 3 ]]; then
+            echo "::error::Expected exactly 3 release assets, found ${#asset_files[@]}"
+            find artifacts -type f -print
+            exit 1
+          fi
+
+          for asset in "${asset_files[@]}"; do
+            filename="$(basename "$asset")"
+
+            if [[ -e "release-assets/$filename" ]]; then
+              echo "::error::Duplicate release asset name: $filename"
+              exit 1
+            fi
+
+            cp "$asset" "release-assets/$filename"
+          done
+
+          cd release-assets
+          sha256sum -- *.msi *.deb *.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            artifacts/* \
+            release-assets/* \
             --title "Lumen Sync ${{ github.ref_name }}" \
             --generate-notes \
             --verify-tag
-
