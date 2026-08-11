@@ -123,6 +123,10 @@ compose.desktop {
         mainClass = "dev.lumensync.app.desktop.MainKt"
         nativeDistributions.appResourcesRootDir.set(project.layout.projectDirectory.dir("src/desktopMain/appResources"))
 
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("proguard-rules.pro"))
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Lumen Sync"

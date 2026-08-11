@@ -55,11 +55,11 @@ internal class SyncthingRestClient(
 
     suspend fun configuredDevices(): List<DeviceSummary> {
         val configured = get("/rest/config/devices").jsonArray
-        val connections = get("/rest/system/connections").jsonObject["connections"]?.jsonObject.orEmpty()
+        val connections = get("/rest/system/connections").jsonObject["connections"].jsonObjectOrEmpty()
         return configured.map { item ->
             val device = item.jsonObject
             val id = device.string("deviceID")
-            val connection = connections[id]?.jsonObject
+            val connection = connections[id] as? JsonObject
             DeviceSummary(
                 id = id,
                 name = device.string("name").ifBlank { shortId(id) },
@@ -83,7 +83,7 @@ internal class SyncthingRestClient(
     suspend fun pendingFolders(): Map<String, List<String>> {
         val response = get("/rest/cluster/pending/folders").jsonObject
         return response.mapValues { (_, value) ->
-            value.jsonObject["offeredBy"]?.jsonObject?.keys?.toList().orEmpty()
+            value.jsonObject["offeredBy"].jsonObjectOrEmpty().keys.toList()
         }
     }
 
@@ -115,7 +115,7 @@ internal class SyncthingRestClient(
 
         if (!folderId.isNullOrBlank()) {
             val folder = get("/rest/config/folders/$folderId").jsonObject
-            val devices = folder["devices"]?.jsonArray.orEmpty()
+            val devices = folder["devices"].jsonArrayOrEmpty()
             if (devices.none { it.jsonObject.string("deviceID") == deviceId }) {
                 patchJson(
                     "/rest/config/folders/$folderId",
@@ -143,10 +143,7 @@ internal class SyncthingRestClient(
 
     suspend fun folderErrors(folderId: String): List<String> {
         val response = get("/rest/folder/errors", mapOf("folder" to folderId)).jsonObject
-        return response["errors"]?.jsonArray.orEmpty().map { error ->
-            val item = error.jsonObject
-            listOf(item.string("path"), item.string("error")).filter { it.isNotBlank() }.joinToString(": ")
-        }
+        return parseFolderErrors(response)
     }
 
     suspend fun setLocalDeviceName(name: String) {
@@ -234,3 +231,13 @@ internal class SyncthingRestClient(
 }
 
 private fun JsonObject.string(name: String): String = this[name]?.jsonPrimitive?.contentOrNull.orEmpty()
+
+private fun JsonElement?.jsonArrayOrEmpty(): JsonArray = this as? JsonArray ?: JsonArray(emptyList())
+
+private fun JsonElement?.jsonObjectOrEmpty(): JsonObject = this as? JsonObject ?: JsonObject(emptyMap())
+
+internal fun parseFolderErrors(response: JsonObject): List<String> =
+    response["errors"].jsonArrayOrEmpty().map { error ->
+        val item = error.jsonObject
+        listOf(item.string("path"), item.string("error")).filter { it.isNotBlank() }.joinToString(": ")
+    }

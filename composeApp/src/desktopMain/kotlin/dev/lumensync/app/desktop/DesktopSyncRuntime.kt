@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.net.HttpURLConnection
+import java.net.URI
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
@@ -36,11 +38,18 @@ class DesktopSyncRuntime : SyncRuntime {
     override val running: StateFlow<Boolean> = mutableRunning.asStateFlow()
 
     override suspend fun start(): RuntimeConnection = mutex.withLock {
-        connection?.takeIf { process?.isAlive == true }?.let { return@withLock it }
+        connection?.takeIf { process?.isAlive == true || apiAvailable(it) }?.let { return@withLock it }
         stopping = false
         restartCount = 0
-        val port = ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress()).use { it.localPort }
         val apiKey = loadOrCreateApiKey()
+
+        findExistingConnection(apiKey)?.let { existing ->
+            connection = existing
+            mutableRunning.value = true
+            return@withLock existing
+        }
+
+        val port = ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress()).use { it.localPort }
         val runtimeConnection = RuntimeConnection("http://127.0.0.1:$port", apiKey)
         startProcess(runtimeConnection)
         connection = runtimeConnection
@@ -116,6 +125,28 @@ class DesktopSyncRuntime : SyncRuntime {
         return executable
     }
 
+    private fun findExistingConnection(apiKey: String): RuntimeConnection? {
+        val configFile = DesktopPaths.syncthingHome.resolve("config.xml")
+        if (!configFile.exists()) return null
+        val baseUrl = runCatching { syncthingGuiBaseUrl(configFile.readText()) }.getOrNull() ?: return null
+        return RuntimeConnection(baseUrl, apiKey).takeIf(::apiAvailable)
+    }
+
+    private fun apiAvailable(runtimeConnection: RuntimeConnection): Boolean = runCatching {
+        val request = URI.create("${runtimeConnection.baseUrl}/rest/system/ping")
+            .toURL()
+            .openConnection() as HttpURLConnection
+        try {
+            request.requestMethod = "GET"
+            request.connectTimeout = 750
+            request.readTimeout = 750
+            request.setRequestProperty("X-API-Key", runtimeConnection.apiKey)
+            request.responseCode in 200..299
+        } finally {
+            request.disconnect()
+        }
+    }.getOrDefault(false)
+
     private fun loadOrCreateApiKey(): String {
         if (DesktopPaths.apiKeyFile.exists()) return DesktopPaths.apiKeyFile.readText().trim()
         val bytes = ByteArray(32).also(SecureRandom()::nextBytes)
@@ -129,4 +160,20 @@ class DesktopSyncRuntime : SyncRuntime {
         }
         return key
     }
+}
+
+private val guiAddressPattern = Regex(
+    pattern = """<gui\b[^>]*>.*?<address>\s*([^<]+?)\s*</address>""",
+    options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+)
+
+internal fun syncthingGuiBaseUrl(configXml: String): String? {
+    val address = guiAddressPattern.find(configXml)?.groupValues?.get(1) ?: return null
+    val uri = runCatching { URI.create(if ("://" in address) address else "http://$address") }.getOrNull()
+        ?: return null
+    val normalizedHost = uri.host?.removePrefix("[")?.removeSuffix("]") ?: return null
+    if (uri.scheme != "http" || normalizedHost !in setOf("127.0.0.1", "localhost", "::1")) return null
+    if (uri.port !in 1..65535) return null
+    val host = if (normalizedHost == "::1") "[::1]" else normalizedHost
+    return "http://$host:${uri.port}"
 }
