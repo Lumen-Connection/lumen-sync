@@ -2,6 +2,7 @@ package dev.lumensync.app.desktop
 
 import dev.lumensync.app.platform.RuntimeConnection
 import dev.lumensync.app.platform.SyncRuntime
+import dev.lumensync.app.syncthing.syncthingGuiBaseUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +18,7 @@ import java.net.URI
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.concurrent.TimeUnit
@@ -34,6 +36,7 @@ class DesktopSyncRuntime : SyncRuntime {
     private var stopping = false
     private var connection: RuntimeConnection? = null
     private var restartCount = 0
+    @Volatile private var lastFailure: String? = null
 
     override val running: StateFlow<Boolean> = mutableRunning.asStateFlow()
 
@@ -41,6 +44,7 @@ class DesktopSyncRuntime : SyncRuntime {
         connection?.takeIf { process?.isAlive == true || apiAvailable(it) }?.let { return@withLock it }
         stopping = false
         restartCount = 0
+        lastFailure = null
         val apiKey = loadOrCreateApiKey()
 
         findExistingConnection(apiKey)?.let { existing ->
@@ -70,6 +74,8 @@ class DesktopSyncRuntime : SyncRuntime {
         mutableRunning.value = false
     }
 
+    override fun startupFailure(): String? = lastFailure
+
     private fun startProcess(runtimeConnection: RuntimeConnection) {
         val command = mutableListOf(
             findSyncthingBinary(),
@@ -97,13 +103,18 @@ class DesktopSyncRuntime : SyncRuntime {
 
     private fun supervise(started: Process, runtimeConnection: RuntimeConnection) {
         scope.launch {
-            started.waitFor()
+            val exitCode = started.waitFor()
             if (process !== started) return@launch
             mutableRunning.value = false
             if (!stopping && restartCount < 3) {
                 restartCount += 1
                 delay(500L * (1 shl (restartCount - 1)))
-                runCatching { startProcess(runtimeConnection) }
+                if (!stopping && process === started) {
+                    runCatching { startProcess(runtimeConnection) }
+                        .onFailure { lastFailure = it.message ?: "Syncthing could not be restarted" }
+                }
+            } else if (!stopping) {
+                lastFailure = syncthingExitMessage(exitCode, DesktopPaths.logFile)
             }
         }
     }
@@ -114,15 +125,19 @@ class DesktopSyncRuntime : SyncRuntime {
         val executable = if (isWindows) "syncthing.exe" else "syncthing"
         val resourcePlatform = if (isWindows) "windows" else "linux"
         val candidates = buildList {
-            System.getProperty("compose.application.resources.dir")?.let { add(Path.of(it, executable)) }
+            System.getProperty("compose.application.resources.dir")?.let {
+                add(Path.of(it, executable))
+                add(Path.of(it, resourcePlatform, executable))
+            }
             add(Path.of("composeApp", "src", "desktopMain", "appResources", resourcePlatform, executable))
             add(Path.of("src", "desktopMain", "appResources", resourcePlatform, executable))
             add(Path.of("third_party", "syncthing", "bin", executable))
             add(Path.of("third_party", "syncthing", executable))
         }
-        candidates.firstOrNull { it.exists() && (isWindows || it.isExecutable()) }
-            ?.let { return it.toAbsolutePath().toString() }
-        return executable
+        val bundled = candidates.firstOrNull { it.exists() }
+            ?: error("The packaged Syncthing core was not found")
+        if (isWindows || bundled.isExecutable()) return bundled.toAbsolutePath().toString()
+        return copyLinuxExecutable(bundled, DesktopPaths.appData).absolutePathString()
     }
 
     private fun findExistingConnection(apiKey: String): RuntimeConnection? {
@@ -162,18 +177,49 @@ class DesktopSyncRuntime : SyncRuntime {
     }
 }
 
-private val guiAddressPattern = Regex(
-    pattern = """<gui\b[^>]*>.*?<address>\s*([^<]+?)\s*</address>""",
-    options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
-)
+internal fun copyLinuxExecutable(source: Path, destinationDirectory: Path): Path {
+    Files.createDirectories(destinationDirectory)
+    val destination = destinationDirectory.resolve("syncthing-core")
+    val temporary = Files.createTempFile(destinationDirectory, "syncthing-core-", ".tmp")
+    try {
+        Files.copy(source, temporary, StandardCopyOption.REPLACE_EXISTING)
+        runCatching {
+            Files.setPosixFilePermissions(
+                temporary,
+                setOf(
+                    java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                    java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
+                    java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE,
+                ),
+            )
+        }.getOrElse {
+            check(temporary.toFile().setExecutable(true, true)) {
+                "The packaged Syncthing core could not be made executable"
+            }
+        }
+        runCatching {
+            Files.move(
+                temporary,
+                destination,
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        }.getOrElse {
+            Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING)
+        }
+        check(destination.isExecutable()) { "The copied Syncthing core is not executable" }
+        return destination
+    } finally {
+        Files.deleteIfExists(temporary)
+    }
+}
 
-internal fun syncthingGuiBaseUrl(configXml: String): String? {
-    val address = guiAddressPattern.find(configXml)?.groupValues?.get(1) ?: return null
-    val uri = runCatching { URI.create(if ("://" in address) address else "http://$address") }.getOrNull()
-        ?: return null
-    val normalizedHost = uri.host?.removePrefix("[")?.removeSuffix("]") ?: return null
-    if (uri.scheme != "http" || normalizedHost !in setOf("127.0.0.1", "localhost", "::1")) return null
-    if (uri.port !in 1..65535) return null
-    val host = if (normalizedHost == "::1") "[::1]" else normalizedHost
-    return "http://$host:${uri.port}"
+private fun syncthingExitMessage(exitCode: Int, logFile: Path): String {
+    val detail = runCatching {
+        logFile.readText().lineSequence().filter { it.isNotBlank() }.toList().takeLast(6).joinToString("\n")
+    }.getOrDefault("")
+    return buildString {
+        append("Syncthing exited with code ").append(exitCode)
+        if (detail.isNotBlank()) append(":\n").append(detail)
+    }
 }

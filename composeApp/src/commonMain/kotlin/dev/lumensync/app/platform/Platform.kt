@@ -12,6 +12,7 @@ interface SyncRuntime {
     val running: StateFlow<Boolean>
     suspend fun start(): RuntimeConnection
     suspend fun stop()
+    fun startupFailure(): String? = null
 }
 
 interface SettingsStore {

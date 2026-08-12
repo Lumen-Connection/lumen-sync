@@ -166,15 +166,19 @@ class DefaultSyncEngine(
         client?.let { return it }
         val connection = runtime.start()
         val newClient = SyncthingRestClient.create(httpClientFactory(), connection)
-        repeat(40) {
+        repeat(STARTUP_ATTEMPTS) {
             if (newClient.ping()) {
                 client = newClient
                 return newClient
             }
+            runtime.startupFailure()?.let { failure ->
+                newClient.close()
+                error(failure)
+            }
             delay(250)
         }
         newClient.close()
-        error("Syncthing did not expose its local API")
+        error(runtime.startupFailure() ?: "Syncthing did not expose its local API after 30 seconds")
     }
 
     private fun startMonitor(mode: SessionMode) {
@@ -225,6 +229,8 @@ class DefaultSyncEngine(
         return "${part(5)}-${part(5)}"
     }
 }
+
+private const val STARTUP_ATTEMPTS = 120
 
 internal object SyncStatusPolicy {
     fun derive(

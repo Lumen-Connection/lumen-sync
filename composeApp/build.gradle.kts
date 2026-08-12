@@ -86,6 +86,7 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        ndk.abiFilters += "arm64-v8a"
     }
 
     packaging {
