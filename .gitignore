@@ -1,8 +1,11 @@
+
+.vs/
 .gradle/
 .idea/
 .kotlin/
 .tools/
 .cache/
+docs/
 build/
 **/build/
 local.properties
