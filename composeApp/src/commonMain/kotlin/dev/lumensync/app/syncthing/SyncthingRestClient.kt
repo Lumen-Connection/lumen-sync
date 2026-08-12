@@ -137,6 +137,14 @@ internal class SyncthingRestClient(
         delete("/rest/cluster/pending/folders", mapOf("folder" to folderId))
     }
 
+    suspend fun removeFolder(folderId: String) {
+        delete("/rest/config/folders/$folderId")
+    }
+
+    suspend fun removeDevice(deviceId: String) {
+        delete("/rest/config/devices/$deviceId")
+    }
+
     suspend fun scan(folderId: String) {
         post("/rest/db/scan", mapOf("folder" to folderId))
     }
@@ -207,12 +215,14 @@ internal class SyncthingRestClient(
         check(response.status.isSuccess()) { "$path failed: ${response.status}: ${response.bodyAsText()}" }
     }
 
-    private suspend fun delete(path: String, parameters: Map<String, String>) {
+    private suspend fun delete(path: String, parameters: Map<String, String> = emptyMap()) {
         val response = httpClient.delete(connection.baseUrl + path) {
             header("X-API-Key", connection.apiKey)
             parameters.forEach { (name, value) -> parameter(name, value) }
         }
-        check(response.status.isSuccess()) { "$path failed: ${response.status}: ${response.bodyAsText()}" }
+        check(response.status.isSuccess() || response.status.value == 404) {
+            "$path failed: ${response.status}: ${response.bodyAsText()}"
+        }
     }
 
     companion object {

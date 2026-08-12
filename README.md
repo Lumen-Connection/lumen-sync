@@ -11,7 +11,8 @@ There is no Lumen Sync account, cloud service, or central database. Devices comm
 - Display device connectivity, progress, errors, and the last successful sync.
 - Keep syncing continuously in the Windows/Linux tray.
 - Run a user-started Android foreground session until up to date.
-- Start a manual rescan and copy/show a QR invite.
+- Trigger a manual sync and copy/show a QR invite.
+- Leave a sync space locally without deleting the selected folder or app data.
 - Optionally start the desktop app when the user signs in.
 
 The folder is a **two-way mirror**. Edits and deletions made on any device propagate to the others. Lumen Sync deliberately does not add backups or file versioning in this first release.
@@ -97,7 +98,7 @@ An invite contains only the folder ID, inviter's Syncthing device ID, and displa
 
 ## Android behavior
 
-Android sessions are manual by design. Press **Sync now** to start a visible data-sync foreground service. It stops after the folder settles, after a no-peer timeout, on an error, or when Android applies its foreground-service time limit. This avoids a permanent background daemon and keeps power use predictable.
+Android sessions are manual by design. Press **Sync** to start a visible data-sync foreground service. It stops after the folder settles, after a no-peer timeout, on an error, or when Android applies its foreground-service time limit. This avoids a permanent background daemon and keeps power use predictable.
 
 Synchronizing an arbitrary user-selected folder requires broad file access (`MANAGE_EXTERNAL_STORAGE`) on modern Android. That permission is why the direct/F-Droid distribution path is the primary target rather than Google Play. Lumen Sync accesses only the chosen folder and stores its own configuration in app-private storage. See [Privacy](docs/PRIVACY.md).
 
