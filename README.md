@@ -1,38 +1,24 @@
-# Lumen Sync
+<div align="center">
+# Lumen Sync 🔁
 
-Lumen Sync is a small Windows, Linux, and Android app for synchronizing one ordinary folder between your own devices. The UI is built once with Kotlin and Compose Multiplatform; a pinned, bundled Syncthing core does the indexing, transfer, discovery, encryption, conflict handling, and change detection.
+**A multi-platform peer-to-peer folder sync app built with Kotlin and Compose Multiplatform.**
 
-There is no Lumen Sync account, cloud service, or central database. Devices communicate peer-to-peer using Syncthing's transport and discovery services.
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)
+![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
 
-## What works
+![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
+![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
 
-- Create one sync space or join it by scanning/pasting an invite.
-- Explicitly approve every joining device.
-- Display device connectivity, progress, errors, and the last successful sync.
-- Keep syncing continuously in the Windows/Linux tray.
-- Run a user-started Android foreground session until up to date.
-- Start a manual rescan and copy/show a QR invite.
-- Optionally start the desktop app when the user signs in.
+</div>
 
-The folder is a **two-way mirror**. Edits and deletions made on any device propagate to the others. Lumen Sync deliberately does not add backups or file versioning in this first release.
+## About
 
-## Architecture
+**Lumen Sync** is a small, universally compatible file share and sync app.
+Anything you put here shows up there, and vice-versa. It's fully open and
+peer-to-peer with end-to-end encryption and does not require any accounts.
 
-```text
-Compose UI (shared)
-        |
-   SyncEngine (shared state machine)
-        |
-Syncthing REST client on 127.0.0.1 + random API key
-        |
-platform process supervisor
-        |
- pinned Syncthing v2.1.1 core <---- encrypted peer-to-peer links ----> other devices
-```
-
-Syncthing's index is the last-known synced state. Lumen Sync never walks the folder or invents a second synchronization database. Platform-specific code is limited to process lifecycle, settings, folder selection, QR/clipboard integration, desktop autostart, and Android's foreground service.
-
-See [the architecture notes](docs/ARCHITECTURE.md) for lifecycle and security details.
+Part of the [Lumen Connection](https://lumenconnection.com.br) family.
 
 ## Build
 
@@ -74,8 +60,6 @@ LUMEN_SYNC_KEY_ALIAS=...
 LUMEN_SYNC_KEY_PASSWORD=...
 ```
 
-Without those variables, `assembleRelease` intentionally produces an unsigned APK suitable for a downstream store such as F-Droid to sign.
-
 ## Test
 
 ```bash
@@ -84,31 +68,4 @@ Without those variables, `assembleRelease` intentionally produces an unsigned AP
 pwsh ./tools/integration_smoke.ps1
 ```
 
-The unit tests cover invite compatibility and the sync-status policy. The integration smoke starts two isolated cores and verifies that create, modify, and delete operations propagate. CI compiles both application targets and independently builds the pinned native core on Windows, Linux, and Android.
-
-## Pair devices
-
-1. On the first device, choose **Create a sync space**, select a folder, and show its invite.
-2. On the new device, choose **Join a sync space**, select its local folder, then scan or paste the invite.
-3. Return to the first device and approve the pending device.
-4. Keep both devices running until each reports **Up to date**.
-
-An invite contains only the folder ID, inviter's Syncthing device ID, and display name. It does not contain the local REST API key or any account secret. Possession of an invite is not enough to join: the inviter must approve the pending device.
-
-## Android behavior
-
-Android sessions are manual by design. Press **Sync now** to start a visible data-sync foreground service. It stops after the folder settles, after a no-peer timeout, on an error, or when Android applies its foreground-service time limit. This avoids a permanent background daemon and keeps power use predictable.
-
-Synchronizing an arbitrary user-selected folder requires broad file access (`MANAGE_EXTERNAL_STORAGE`) on modern Android. That permission is why the direct/F-Droid distribution path is the primary target rather than Google Play. Lumen Sync accesses only the chosen folder and stores its own configuration in app-private storage. See [Privacy](docs/PRIVACY.md).
-
-## Current scope
-
-- One folder and one sync space per installation.
-- Two-way `sendreceive` mode only.
-- Android arm64 only.
-- No remote administration UI, browser GUI, accounts, telemetry, analytics, or crash uploads.
-- Syncthing's normal conflict copies are preserved, but file versioning and backups are not enabled.
-
-## License
-
-Lumen Sync is Apache-2.0 licensed. The bundled Syncthing core remains MPL-2.0 licensed; see [Third-party notices](THIRD_PARTY_NOTICES.md) and [LICENSES](LICENSES/README.md).
+Unit tests cover invite compatibility and the sync-status policy.

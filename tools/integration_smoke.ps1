@@ -167,7 +167,28 @@ try {
     Remove-Item -LiteralPath $fileA
     Invoke-NodeApi $nodeA POST "/rest/db/scan?folder=smoke-23456" | Out-Null
     Wait-Deleted $fileB
-    Write-Host "Syncthing integration smoke passed: create, modify, and delete propagated."
+
+    $keptAfterLeave = Join-Path $nodeB.Folder "kept-after-leave.txt"
+    Set-Content -LiteralPath $keptAfterLeave -Value "stays-local" -NoNewline
+    Invoke-NodeApi $nodeB DELETE "/rest/config/devices/$idA" | Out-Null
+    Invoke-NodeApi $nodeB DELETE "/rest/config/folders/smoke-23456" | Out-Null
+    Wait-File $keptAfterLeave "stays-local"
+
+    $remainingFolders = @(Invoke-NodeApi $nodeB GET "/rest/config/folders")
+    if ($remainingFolders | Where-Object { $_.id -eq "smoke-23456" }) {
+        throw "The leaving device still has the old folder configured"
+    }
+
+    $newFolder = Join-Path $nodeB.NodeHome "new-folder"
+    $null = New-Item -ItemType Directory -Path $newFolder -Force
+    $nodeB.Folder = $newFolder
+    Add-SharedFolder $nodeB "fresh-34567" @($idB)
+    $newFolders = @(Invoke-NodeApi $nodeB GET "/rest/config/folders")
+    if (-not ($newFolders | Where-Object { $_.id -eq "fresh-34567" })) {
+        throw "The leaving device could not configure a new local space"
+    }
+
+    Write-Host "Syncthing integration smoke passed: create, modify, delete, leave, and reconfigure."
 } finally {
     foreach ($node in @($nodeA, $nodeB)) {
         if ($null -eq $node) { continue }

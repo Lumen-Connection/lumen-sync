@@ -33,7 +33,8 @@ interface SyncEngine {
     suspend fun createInvite(): String
     suspend fun approveDevice(deviceId: String, name: String)
     suspend fun rejectDevice(deviceId: String)
-    suspend fun rescan()
+    suspend fun sync()
+    suspend fun leaveSpace()
     suspend fun setDesktopAutostart(enabled: Boolean)
 }
 
@@ -150,12 +151,33 @@ class DefaultSyncEngine(
         refreshStatus()
     }
 
-    override suspend fun rescan() {
+    override suspend fun sync() {
         val folderId = mutableSettings.value.folderId
         require(folderId.isNotBlank()) { "No folder is configured" }
         ensureClient()
         client!!.scan(folderId)
         refreshStatus()
+    }
+
+    override suspend fun leaveSpace() {
+        val current = mutableSettings.value
+        if (current.folderId.isNotBlank()) {
+            val api = ensureClient()
+            val localDeviceId = api.systemStatus().myId
+            val configuredPeers = api.configuredDevices().filterNot { it.id == localDeviceId }
+            val pendingPeers = api.pendingDevices()
+            val pendingFolders = api.pendingFolders().keys.filter { it == current.folderId }
+
+            // Remove peer configuration before the folder. This keeps a retry possible if
+            // the folder deletion itself fails, and the REST operations are idempotent.
+            configuredPeers.forEach { api.removeDevice(it.id) }
+            pendingPeers.forEach { api.dismissPendingDevice(it.id) }
+            pendingFolders.forEach { api.dismissPendingFolder(it) }
+            api.removeFolder(current.folderId)
+        }
+
+        stop("Space left")
+        saveSettings(AppSettings())
     }
 
     override suspend fun setDesktopAutostart(enabled: Boolean) {

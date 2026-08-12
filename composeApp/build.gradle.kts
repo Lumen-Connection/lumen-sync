@@ -51,6 +51,7 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(libs.coroutines.core)
+                implementation(libs.ktor.client.mock)
             }
         }
         val androidMain by getting {

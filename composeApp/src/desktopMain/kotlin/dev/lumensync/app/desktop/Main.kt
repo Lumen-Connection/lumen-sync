@@ -59,7 +59,7 @@ fun main() {
                 onAction = { visible = true },
                 menu = {
                     Item("Open Lumen Sync", onClick = { visible = true })
-                    Item("Scan now", onClick = { scope.launch { engine.rescan() } })
+                    Item("Sync", onClick = { scope.launch { engine.sync() } })
                     Separator()
                     Item("Quit", onClick = {
                         scope.launch(Dispatchers.IO) {
