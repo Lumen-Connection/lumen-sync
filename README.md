@@ -1,4 +1,5 @@
 <div align="center">
+  
 # Lumen Sync 🔁
 
 **A multi-platform peer-to-peer folder sync app built with Kotlin and Compose Multiplatform.**
