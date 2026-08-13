@@ -100,69 +100,81 @@ fun LumenSyncApp(engine: SyncEngine, platform: PlatformActions) {
         ),
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-            if (!settings.isConfigured) {
-                Onboarding(
-                    platform = platform,
-                    onCreate = { name, folder ->
-                        scope.launch {
-                            error = runCatching { engine.createSpace(name, folder) }
-                                .exceptionOrNull()?.message
-                        }
-                    },
-                    onJoin = { name, folder, invite ->
-                        scope.launch {
-                            error = runCatching { engine.joinSpace(name, folder, invite) }
-                                .exceptionOrNull()?.message
-                        }
-                    },
-                    error = error,
-                )
-            } else {
-                Dashboard(
-                    status = status,
-                    localFolder = settings.localFolder,
-                    autostart = settings.desktopAutostart,
-                    platform = platform,
-                    onInvite = { showInvite = true },
-                    onSync = {
-                        scope.launch {
-                            error = runCatching {
-                                if (platform.usesManualSessions) {
-                                    platform.startSyncSession()
-                                } else {
-                                    engine.sync()
-                                }
-                            }.exceptionOrNull()?.message
-                        }
-                    },
-                    onStop = { scope.launch { platform.stopSyncSession() } },
-                    onApprove = { device ->
-                        scope.launch {
-                            error = runCatching { engine.approveDevice(device.id, device.name) }
-                                .exceptionOrNull()?.message
-                        }
-                    },
-                    onReject = { device ->
-                        scope.launch {
-                            error = runCatching { engine.rejectDevice(device.id) }
-                                .exceptionOrNull()?.message
-                        }
-                    },
-                    onAutostart = { enabled ->
-                        scope.launch {
-                            platform.configureAutostart(enabled)
-                            engine.setDesktopAutostart(enabled)
-                        }
-                    },
-                    onLeave = { showLeave = true },
-                    leaving = leaving,
-                    error = error,
-                )
-            }
-        }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(vertical = 12.dp),
+            ) {
+                if (!settings.isConfigured) {
+                    Onboarding(
+                        platform = platform,
+                        onCreate = { name, folder ->
+                            scope.launch {
+                                error = runCatching { engine.createSpace(name, folder) }
+                                    .exceptionOrNull()?.message
+                            }
+                        },
+                        onJoin = { name, folder, invite ->
+                            scope.launch {
+                                error = runCatching { engine.joinSpace(name, folder, invite) }
+                                    .exceptionOrNull()?.message
+                            }
+                        },
+                        error = error,
+                    )
+                } else {
+                    Dashboard(
+                        status = status,
+                        localFolder = settings.localFolder,
+                        autostart = settings.desktopAutostart,
+                        platform = platform,
+                        onInvite = { showInvite = true },
+                        onSeeFolder = {
+                            scope.launch {
+                                error = runCatching { platform.openFolder(settings.localFolder) }
+                                    .exceptionOrNull()?.message
+                            }
+                        },
+                        onSync = {
+                            scope.launch {
+                                error = runCatching {
+                                    if (platform.usesManualSessions) {
+                                        platform.startSyncSession()
+                                    } else {
+                                        engine.sync()
+                                    }
+                                }.exceptionOrNull()?.message
+                            }
+                        },
+                        onStop = { scope.launch { platform.stopSyncSession() } },
+                        onApprove = { device ->
+                            scope.launch {
+                                error = runCatching { engine.approveDevice(device.id, device.name) }
+                                    .exceptionOrNull()?.message
+                            }
+                        },
+                        onReject = { device ->
+                            scope.launch {
+                                error = runCatching { engine.rejectDevice(device.id) }
+                                    .exceptionOrNull()?.message
+                            }
+                        },
+                        onAutostart = { enabled ->
+                            scope.launch {
+                                platform.configureAutostart(enabled)
+                                engine.setDesktopAutostart(enabled)
+                            }
+                        },
+                        onLeave = { showLeave = true },
+                        leaving = leaving,
+                        error = error,
+                    )
+                }
 
-        if (showInvite) {
-            InviteOverlay(engine, platform) { showInvite = false }
+                if (showInvite) {
+                    InviteOverlay(engine, platform) { showInvite = false }
+                }
+            }
         }
 
         if (showLeave) {
@@ -317,6 +329,7 @@ private fun Dashboard(
     autostart: Boolean,
     platform: PlatformActions,
     onInvite: () -> Unit,
+    onSeeFolder: () -> Unit,
     onSync: () -> Unit,
     onStop: () -> Unit,
     onApprove: (DeviceSummary) -> Unit,
@@ -335,16 +348,24 @@ private fun Dashboard(
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth()) {
                     Text("LUMEN SYNC", color = LumenColors.accent, style = MaterialTheme.typography.caption, fontWeight = FontWeight.Bold)
                     Text("Your sync space", style = MaterialTheme.typography.h5, fontWeight = FontWeight.Bold)
                     Text(localFolder, color = LumenColors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Button(
-                    onClick = onInvite,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = LumenColors.accent, contentColor = Color.White),
-                ) { Text("Add device") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = onSeeFolder,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = LumenColors.accent),
+                        modifier = Modifier.weight(1f),
+                    ) { Text("See folder") }
+                    Button(
+                        onClick = onInvite,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = LumenColors.accent, contentColor = Color.White),
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Add device") }
+                }
             }
 
             if (compact) {

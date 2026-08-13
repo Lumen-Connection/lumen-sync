@@ -76,6 +76,18 @@ class AndroidPlatformActions(private val activity: ComponentActivity) : Platform
         }
     }
 
+    override suspend fun openFolder(path: String) {
+        if (!ensureFileAccess()) {
+            error("Storage permission is required to open the synced folder.")
+        }
+        val treeUri = pathToTreeUri(path)
+            ?: error("Unable to open the synced folder in the file manager.")
+        activity.startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            putExtra(DocumentsContract.EXTRA_INITIAL_URI, treeUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        })
+    }
+
     override suspend fun copyToClipboard(value: String) {
         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Lumen Sync invite", value))
@@ -168,6 +180,38 @@ class AndroidPlatformActions(private val activity: ComponentActivity) : Platform
         }
         return File(root, relative).canonicalPath
     }
+
+    private fun pathToTreeUri(path: String): Uri? {
+        val folder = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
+        val primaryRoot = runCatching { Environment.getExternalStorageDirectory().canonicalFile }.getOrNull()
+        if (primaryRoot != null && isWithin(folder, primaryRoot)) {
+            val relative = if (folder == primaryRoot) {
+                ""
+            } else {
+                folder.relativeTo(primaryRoot).path.replace(File.separatorChar, '/')
+            }
+            return DocumentsContract.buildTreeDocumentUri(
+                "com.android.externalstorage.documents",
+                "primary:$relative",
+            )
+        }
+
+        val storageRoot = runCatching { File("/storage").canonicalFile }.getOrNull() ?: return null
+        if (!isWithin(folder, storageRoot)) return null
+        val pathParts = folder.relativeTo(storageRoot).path
+            .replace(File.separatorChar, '/')
+            .split('/')
+            .filter(String::isNotEmpty)
+        val volume = pathParts.firstOrNull() ?: return null
+        val relative = pathParts.drop(1).joinToString("/")
+        return DocumentsContract.buildTreeDocumentUri(
+            "com.android.externalstorage.documents",
+            "$volume:$relative",
+        )
+    }
+
+    private fun isWithin(path: File, root: File): Boolean =
+        path == root || path.path.startsWith(root.path + File.separator)
 
     private fun isAllowedFolder(path: String): Boolean {
         val normalized = path.replace('\\', '/').lowercase()

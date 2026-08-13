@@ -31,6 +31,20 @@ class DesktopPlatformActions(
         if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) chooser.selectedFile.absolutePath else null
     }
 
+    override suspend fun openFolder(path: String) = withContext(Dispatchers.IO) {
+        val folder = Path.of(path).toFile()
+        require(folder.isDirectory) { "The synced folder is no longer available." }
+
+        val os = System.getProperty("os.name").lowercase()
+        val command = when {
+            os.contains("win") -> listOf("explorer.exe", folder.absolutePath)
+            os.contains("mac") -> listOf("open", folder.absolutePath)
+            else -> listOf("xdg-open", folder.absolutePath)
+        }
+        ProcessBuilder(command).start()
+        Unit
+    }
+
     override suspend fun copyToClipboard(value: String) = withContext(Dispatchers.Swing) {
         Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(value), null)
     }

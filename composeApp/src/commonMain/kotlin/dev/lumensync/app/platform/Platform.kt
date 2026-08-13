@@ -26,6 +26,7 @@ interface PlatformActions {
     val canScanQr: Boolean
     val usesManualSessions: Boolean
     suspend fun chooseFolder(): String?
+    suspend fun openFolder(path: String)
     suspend fun copyToClipboard(value: String)
     suspend fun scanInvite(): String?
     suspend fun startSyncSession()
